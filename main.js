@@ -1,255 +1,83 @@
 
-Promise.all([ 
-	d3.json('airports.json'),
-	d3.json('world-110m.json')]).then(data => {
 
-        let airports = data[0].nodes;
+d3.csv('driving.csv', d3.autoType).then(data=>{ 
 
-        let margin = { top: 40, right: 40, bottom: 40, left: 40 },
-            width = 800 - margin.left - margin.right,
-            height = 600 - margin.top - margin.bottom;
+    //construct svg element
+    const margin = ({top: 40, right: 40, bottom: 40, left: 40});
 
-        let svg = d3.select(".chart")
-                    .append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", height + margin.top + margin.bottom)
-                    .append("g")
-                    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-            
-        const features = topojson.feature(data[1], data[1].objects.countries).features;
-        const projection = d3.geoMercator()
-                                .fitExtent([[0,0], [width,height]], topojson.feature(data[1], data[1].objects.countries));
+    const w = 650 - margin.left - margin.right,
+    h = 500 - margin.top - margin.bottom;
 
-        const path = d3.geoPath()
-            .projection(projection);
+    const svg = d3.select(".chart")
+    .append("svg")
+    .attr("width", w + margin.left + margin.right)
+    .attr("height", h + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
-        svg.selectAll("path")
-            .data(features)
-            .join("path")
-            .attr("d", path)
-            .attr("fill", "black");
-            
-        svg.append("path")
-            .datum(topojson.mesh(data[1], data[1].objects.countries))
-            .attr("fill", "none")
-            .attr("stroke", "white")
-            .attr("stroke-linejoin", "round")
-            .attr("d", path);
+    const xScale = d3.scaleLinear()
+    .domain(d3.extent(data, function(d) {
+        return d.miles;
+    }))
+    .range([0, w]);
 
-        let passengersDomain = d3.extent(airports, function(d) {
-            return d.passengers;
-        })
-                        
-        let circleScale = d3.scaleSqrt()
-                            .domain(d3.extent(passengersDomain))
-                            .range([4,10]);
+    const yScale = d3.scaleLinear()
+    .domain(d3.extent(data, function(d) {
+        return d.gas;
+    })).nice()
+    .range([h, 0]);  //reversed because of SVG
 
+    const xAxis = d3.axisBottom()
+                    .scale(xScale)
 
-        const force = d3.forceSimulation(data[0].nodes)
-                    .force("charge", d3.forceManyBody().strength(-50))
-                    .force("link", d3.forceLink(data[0].links).distance(40))
-                    .force("x", d3.forceX(width/2))
-                    .force("y", d3.forceY(height/2));
-              
-        visType = "force";
-        switchLayout()
-        function switchLayout() {
-            if (visType === "map") {
-                linksForce = svg.selectAll('.chart')
-                .data(data[0].links)
-                .enter()
-                .append('line')
-                .attr('class', 'force')
-                .attr('x1', (d)=> (d.source.x))
-                .attr('y1',(d) => (d.source.y))
-                .attr('x2', (d) => (d.target.x))
-                .attr('y2',(d) => (d.target.y))
-                .transition()
-                .duration(1000)
-                .attr("x1", function(d) {
-                return projection([d.source.longitude, d.source.latitude])[0];
-                })
-                .attr("y1", function(d) {
-                return projection([d.source.longitude, d.source.latitude])[1];
-                })
-                .attr("x2", function(d) {
-                return projection([d.target.longitude, d.target.latitude])[0];
-                })
-                .attr("y2", function(d) {
-                return projection([d.target.longitude, d.target.latitude])[1];
-                })
+    const yAxis = d3.axisLeft()
+                    .scale(yScale)
+                    .tickFormat(d3.format("($.2f"))
 
-                let linksMap = svg.selectAll('.chart')
-                .data(data[0].links)
-                .enter()
-                .append('line')
-                .attr('class', 'map')
-                .attr('x1', (d)=> (d.source.x))
-                .attr('y1',(d) => (d.source.y))
-                .attr('x2', (d) => (d.target.x))
-                .attr('y2',(d) => (d.target.y))
-                .transition()
-                .duration(1000)
-                .attr("x1", function(d) {
-                return projection([d.source.longitude, d.source.latitude])[0];
-                })
-                .attr("y1", function(d) {
-                return projection([d.source.longitude, d.source.latitude])[1];
-                })
-                .attr("x2", function(d) {
-                return projection([d.target.longitude, d.target.latitude])[0];
-                })
-                .attr("y2", function(d) {
-                return projection([d.target.longitude, d.target.latitude])[1];
-                })
-                .attr('stroke', 'black')
+                    
+    // Draw the axes
+    svg.append("g")
+        .attr("class", "axis x-axis")
+        .attr("transform", `translate(0, ${h})`)
+        .call(xAxis);
 
+    svg.append("g")
+        .attr("class", "axis y-axis")
+ //       .attr("transform", `translate(0, ${h+margin.top/2})`)
+        .call(yAxis);
 
-                let nodesMap = svg.selectAll('.chart')
-                                    .data(data[0].nodes)
-                                    .enter()
-                                    .append('circle')
-                                    .attr('class', 'map')
-                                    .attr('cx', (d,i)=>(d.x))
-                                    .attr('cy', (d,i)=>(d.y))
-                                    .attr('fill', 'orange') 
-                                    .attr('r',d=>circleScale(d.passengers))
-                                    .on("mouseenter", (event, d) => {
-                                        const pos = d3.pointer(event, window)
-                                        d3.selectAll('.tooltip')
-                                            .style('display','inline-block')
-                                            .style('position','fixed')
-                                            .style('top', pos[1]+10+'px')
-                                            .style('left', pos[0]+10+'px')
-                                            .html(
-                                                d.name 
-                                            )
-                                    })
-                                    .on("mouseleave", (event, d) => {
-                                        d3.selectAll('.tooltip')
-                                            .style('display','none')
-                                    })
-                                    .transition()
-                                    .duration(1000)
-                                    .attr("cx", function(d) {
-                                    return projection([d.longitude, d.latitude])[0];
-                                    })
-                                    .attr("cy", function(d) {
-                                    return projection([d.longitude, d.latitude])[1];
-                                    })
-
-                svg.selectAll("path")
-                    .attr("opacity", 0);
-
-                svg.selectAll('.force').remove()
-
-                force.alpha(0.5).stop();
-                
-                force.on("tick", () => {
-                linksMap
-                .attr("x1", function(d) {
-                    return projection([d.source.longitude, d.source.latitude])[0];
-                })
-                .attr("y1", function(d) {
-                    return projection([d.source.longitude, d.source.latitude])[1];
-                })
-                .attr("x2", function(d) {
-                    return projection([d.target.longitude, d.target.latitude])[0];
-                })
-                .attr("y2", function(d) {
-                    return projection([d.target.longitude, d.target.latitude])[1];
-                });
-                
-                nodesMap
-                .attr("transform", function(d){
-                    return "translate(" + projection([d.longitude, d.latitude]) + ")";
-                })
-
-                drag.filter(event => visType === "force")
-                
-                });
-
-                
-                
-                svg.selectAll('path')
-                .transition()
-                    .delay(500)
-                .attr('opacity', 1)
-
-            } else {
-                svg.selectAll('.map').remove()
-
-                drag = force => {
-                function dragstarted(event) {
-                    if (!event.active) force.alphaTarget(0.3).restart();
-                    event.subject.fx = event.subject.x;
-                    event.subject.fy = event.subject.y;
-                }
-                
-                function dragged(event) {
-                    event.subject.fx = event.x;
-                    event.subject.fy = event.y;
-                }
-                
-                function dragended(event) {
-                    if (!event.active) force.alphaTarget(0);
-                    event.subject.fx = null;
-                    event.subject.fy = null;
-                }
-                
-                return d3.drag()
-                    .on("start", dragstarted)
-                    .on("drag", dragged)
-                    .on("end", dragended);
-                }
-                force.alpha(0.5).restart();
-
-                let linksForce = svg.selectAll('.chart')
-                .data(data[0].links)
-                .enter()
-                .append('line')
-                .attr('class', 'force')
-                .attr('x1', (d)=> (d.source.x))
-                .attr('y1',(d) => (d.source.y))
-                .attr('x2', (d) => (d.target.x))
-                .attr('y2',(d) => (d.target.y))
-                .attr('stroke', 'black')
-
-            let nodesForce = svg.selectAll('.chart')
-                .data(data[0].nodes)
-                .enter()
-                .append('circle')
-                .attr('class', 'force')
-                .attr('cx', (d,i)=>(d.x))
-                .attr('cy', (d,i)=>(d.y))
-                .attr('fill', 'orange') 
-                .attr('r',d=>circleScale(d.passengers))
-                .call(drag(force));
-                svg.selectAll("path")
-                    .attr("opacity", 0);
-
-                force.on("tick", () => {
-                linksForce
-                    .attr("x1", d => (d.source.x))
-                    .attr("y1", d => (d.source.y))
-                    .attr("x2", d => (d.target.x))
-                    .attr("y2", d => (d.target.y));
-            
-                nodesForce
-                    .attr("cx", d => (d.x))
-                    .attr("cy", d => (d.y))
-            
-            });
-            }
-            
-            }
-
-            d3.selectAll("input[name=display]").on("change", event=>{
-            visType = event.target.value;
-            console.log("SWITHC")
-            switchLayout();
-            });
+    //add circles
+    const circles = svg.selectAll('.circles')
+                         .data(data);
     
+    // Implement the enter-update-exist sequence
 
+    circles.enter()
+            .append("circle")
+            .attr('cx', function(d){
+                return xScale(d.miles);
+            })
+            .attr('cy', function(d){
+                return yScale(d.gas);
+            })
+            .attr('r', "3px")
+            .attr("stroke-width", 0.5)
+            .attr("stroke", "black")
+            .attr("fill", "white")
 
-  })
+    const labels = svg.selectAll('.textLabels')
+                        .data(data);
+
+    labels.enter()
+            .append("text")
+            .attr('x', function(d){
+                return xScale(d.miles);
+            })
+            .attr('y', function(d){
+                return yScale(d.gas)-4;
+            })
+
+                    
+
+})
+
