@@ -1,7 +1,14 @@
 h1 {
     margin: 10px;
+    color: black;
 }
 
 h4 {
     margin-left: 10px;
+    margin-bottom: 10px;
+    color: black;
+}
+
+.axis text{
+    fill: black;
 }
